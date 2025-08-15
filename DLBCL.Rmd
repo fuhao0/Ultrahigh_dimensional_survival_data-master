@@ -1,0 +1,157 @@
+---
+title: "DLBCL"
+author: "fuhao"
+date: "2023-11-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = F,message = F)
+```
+
+```{r}
+setwd("C:/Users/lenovo/Desktop/PAPER1/dakao/staudt/staudt")
+getwd()
+
+```
+
+
+```{r}
+staudt.x<-matrix(scan("C:/Users/lenovo/Desktop/PAPER1/dakao/staudt/staudt/staudt.x"),ncol=240,byrow=TRUE)
+taudt.tim<-scan("C:/Users/lenovo/Desktop/PAPER1/dakao/staudt/staudt/staudt.tim")
+taudt.status<-scan("C:/Users/lenovo/Desktop/PAPER1/dakao/staudt/staudt/staudt.status")
+staudt.train.indices<-scan("C:/Users/lenovo/Desktop/PAPER1/dakao/staudt/staudt/staudt.train.indices")
+```
+
+```{r}
+datadcbcl <- data.frame(
+  taudt.tim,
+  taudt.status,
+  t(staudt.x)
+)
+```
+
+```{r}
+View(datadcbcl)
+```
+
+
+```{r}
+z_score_normalize <- function(x) {
+  (x - mean(x)) / sd(x)
+}
+```
+
+```{r}
+normalized_data <- apply(t(staudt.x), 2, z_score_normalize)
+
+datan <- data.frame(
+  log(taudt.tim),
+  taudt.status,
+  normalized_data
+)
+```
+
+```{r}
+dim(datan)
+```
+
+```{r}
+datan <- na.omit(datan)
+a <- apply(datan, 1, function(x) all(is.finite(x)))
+datan <- datan[a,]
+```
+
+```{r}
+ipwd <- IPW(datan[,2],datan[,1],datan[,-c(1,2)])
+# 使用is.finite()函数判断每个元素是否为有限值
+finite_rowst <- apply(ipwd, 1, function(x) all(is.finite(x)))
+# 选择不包含Inf值的行
+ipwd <- ipwd[finite_rowst, ]
+MrDcSISt <- MrDc.SIS(300,ipwd);
+MrDcSISt1 <- MrDcSISt[order(MrDcSISt[, 1]),1]
+print(MrDcSISt1[1:4])
+xd <- as.matrix(datan[,-c(1,2)])
+xd <- xd[,MrDcSISt1]
+x_zd <- Bzk(xd)
+x_z1d <- cbind(rep(1,dim(x_zd)[1]),x_zd)
+```
+
+
+
+
+
+
+```{r}
+fitz1 <- DCA_BJ_lp(x_z1d,datan[,1],datan[,2],beta_c = rep(0.1,901) ,n,m)
+fitz1$daic
+```
+```{r}
+NV(fitz1$beta)
+```
+```{r}
+MrDcSISt1[NV(fitz1$beta)] 
+```
+
+```{r}
+MrDc.SISd <- function(d,ipw){
+  ipwzr <- apply(ipw, 2, equals)
+  m = rep(0,dim(ipw)[2]-1)
+  for (i in 2:dim(ipw)[2]) {
+    m[i-1] = dcor(ipwzr[,1],ipwzr[,i])
+  }
+  M = rep(0,d)
+  M[1] = xxt(m)
+  I=sort(abs(m), decreasing = TRUE, index.return=TRUE)
+  I1=I$ix[1:d]
+  beta=m[I1]
+  result=cbind(I1, beta,M)
+  return(result)
+}
+```
+
+
+
+
+```{r}
+a = BJASS(x_z1d,datan[,1],datan[,2],beta_ini = c(rep(0,901)),13,S = c(1:901),beta_S = c(rep(0,901)))
+beta_ini = c(rep(0,901))
+beta_ini[a$S] = a$beta_S
+b = BJASS(x_z1d,datan[,1],datan[,2],beta_ini,13,S = c(1:901),beta_S = c(rep(0,901)))
+beta_ini = c(rep(0,901))
+beta_ini[b$S] = b$beta_S
+c = BJASS(x_z1d,datan[,1],datan[,2],beta_ini,13,S = c(1:901),beta_S = c(rep(0,901)))
+beta_ini = c(rep(0,901))
+beta_ini[c$S] = c$beta_S
+d = BJASS(x_z1d,datan[,1],datan[,2],beta_ini,13,S = c(1:901),beta_S = c(rep(0,901)))
+beta_ini = c(rep(0,901))
+beta_ini[d$S] = d$beta_S
+g = BJASS(x_z1d,datan[,1],datan[,2],beta_ini,13,S = c(1:901),beta_S = c(rep(0,901)))
+g$daic
+
+```
+
+```{r}
+qq = (g$S-1)/3
+```
+```{r}
+MrDcSISmcl1[qq[2:length(qq)]] 
+```
+```{r}
+dlbclscad <- Bjsc(x_zd,datan[,1],datan[,2])
+```
+
+```{r}
+dlbclscad$DAICl
+```
+```{r}
+NV(dlbclscad$beta)
+```
+```{r}
+MrDcSISmcl1[NV(dlbclscad$beta)] 
+```
+
+
+
+
+

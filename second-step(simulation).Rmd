@@ -1,0 +1,123 @@
+---
+title: "twostep"
+author: "fuhao"
+date: "2023-12-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message = F,warning = F)
+```
+
+```{r}
+library(glmnet)
+library(survival)
+library(bujar)
+```
+
+
+
+
+```{r}
+DCA_BJ_lp10 <- function(X,y,delta,beta_c,la,p){
+  X <- as.matrix(X);
+  m <- dim(X)[1];
+  n <- dim(X)[2];
+  beta <- beta_c;
+  w <- beta_c;
+  z <- rep(0,m);
+  I <- diag(rep(1,n));
+  #la = 5
+  rho1 = 1
+  rho2 = 1
+  miu <- rep(0,n);
+  eta <- rep(0,m);
+  l=0;
+  #Tol <- ce(la)
+  for (i in 1:10) {
+    repeat {
+    # 先循环后判断的代码
+      beta1 <- beta;
+      v <- gradient(la,beta,p);
+      beta <- SoftThreshold(w-(miu-v)/rho1,la/rho1);
+      w <- solve(rho2 * t(X)%*%X + rho1 * I) %*% (rho2 * t(X) %*% (y + z) + rho1 * beta + miu - t(X) %*% eta );
+      z <- (eta + rho2 * X %*% w - rho2 * y)/(1 + rho2);
+      miu <- miu + rho1 * (beta - w);
+      eta <- eta + rho2 * (X %*% w - y - z);
+      
+      
+      l <- l + 1;
+      beta2 <- beta;
+      #print(norm_p(beta2-beta1,2)/norm_p(beta1, 2))
+      if ((norm_p(beta2-beta1,2)/norm_p(beta1, 2) < 0.5) && (l>=100) ) {
+        #print(l)  
+        break  # 跳出循环
+        }
+    }
+    y <- BJ(X,y,delta,beta);
+    #print(i)
+  }
+  daic <- DAIC(delta,y,X%*%beta,beta)
+  result1 = list(beta = beta,daic = daic);
+  return(result1)
+}
+```
+
+```{r}
+SigmaC1 = diag(c(2,4,rep(1,998)));
+for (i in c(1:1000)) {
+  for (j in c(1:1000)) {
+    if(i!=j){
+      SigmaC1[i,j] = 0.5^abs(i-j)
+    }
+  }
+}
+mu = c(3,2,1,1,rep(0,996))
+U1 = 0.3
+betaC2 = c(2,1,3,1,rep(0,996))
+betaC1 = c(3,1,3,-4,rep(0,996))
+```
+
+
+```{r}
+Case1 <- Moni1(betaC1,300,sig = SigmaC1,mu,U1);
+Case1 <- na.omit(Case1)
+ipw <- IPW(Case1[,2],Case1[,1],Case1[,-c(1,2)])
+finite_rows <- apply(ipw, 1, function(x) all(is.finite(x)))
+# 选择不包含Inf值的行
+ipw <- ipw[finite_rows, ]
+MrDcSIS <- MrDc.SIS(300,ipw);
+MrDcSIS1 <- MrDcSIS[order(MrDcSIS[, 1]),1]
+print(MrDcSIS1[1:4])
+X <- as.matrix(Case1[,-c(1,2)])
+X1 <- X[,MrDcSIS1]
+X_z <- Bzk(X1)
+X_z1 <- cbind(rep(1,dim(X_z)[1]),X_z)
+
+
+```
+
+
+```{r}
+# Assume that the hyperparameter is set to n4 and m2
+n4 <- c(5,10,15,20,30)
+m2 = c(1.1,1.5,2,25,30,40)
+```
+
+
+```{r}
+case1jg10 = matrix(rep(0,6*6*8),ncol = 8)
+s = 1
+for(i in 1:6 ) {
+  for (j in 1:6) {
+    fitcase1 <- DCA_BJ_lp(X_z1,Case1[,1],Case1[,2],beta_c = rep(0.1,901),n4[i],m2[j])
+    case1jg10[s,] <- fitcase1$daic
+    print(fitcase1$daic)
+    print(c(n4[i],m2[j]))
+    print(s)
+    s = s+1
+    
+  }
+  
+}
+```

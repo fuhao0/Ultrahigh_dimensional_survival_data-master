@@ -1,0 +1,239 @@
+---
+title: "Mcl"
+author: "fuhao"
+date: "2023-11-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message = F,warning = F)
+```
+
+```{r}
+setwd("C:/Users/lenovo/Desktop/PAPER1/dakao")
+getwd()
+
+```
+
+```{r}
+mcl <- read.table("MCL_data.txt",
+                   header = T,fill = T,sep = "\t",
+                   comment.char = "#",
+                   stringsAsFactors = F,
+                   quote = "")
+```
+
+```{r}
+View(mcl)
+```
+
+```{r}
+dim(mcl)
+```
+```{r}
+mcly <- read.table("survival.txt",
+                   header = T,fill = T,sep = "\t",
+                   comment.char = "#",
+                   stringsAsFactors = F,
+                   quote = "")
+```
+
+```{r}
+datay <- mcly[,1:3]
+View(datay)
+```
+
+
+
+```{r}
+library(stringr)
+a = strsplit(mcl$name, split = "|", fixed = TRUE)
+```
+
+```{r}
+# 使用lapply函数提取每个列表的第二项，并转换为数据框
+mcl$name <- t(data.frame(lapply(a, function(x) x[[2]])))
+rownames(mcl$name) <- NULL
+# 输出结果
+```
+
+
+```{r}
+mclt <- t(mcl)
+colnames(mclt) <- mcl$name
+mclt <- mclt[3:dim(mclt)[1],]
+View(mclt)
+```
+
+```{r}
+colnames(datay) <- c("ID","delta","time")
+rownames(datay) <- datay$ID
+View(datay)
+```
+
+```{r}
+View(mclt)
+View(datay)
+```
+
+
+
+```{r}
+mclt <- as.data.frame(mclt)
+mclt$ID <- rownames(mclt)
+rownames(mclt) <- c(1:99)
+```
+
+```{r}
+rownames(datay) <- c(1:92)
+datamcl <-  merge(datay, mclt, by = "ID", all = TRUE)
+```
+
+```{r}
+datamcl <- datamcl[8:dim(datamcl)[1],]
+```
+
+```{r}
+rownames(datamcl) <- datamcl$ID
+```
+
+```{r}
+#mclz为mcl数据集有缺失的数据
+mclz <- datamcl[,2:dim(datamcl)[2]]
+```
+
+```{r}
+missing_values <- colSums(is.na(mclz))
+```
+
+```{r}
+a = missing_values[missing_values>=46]
+length(a)
+```
+```{r}
+# 筛选出缺失值数量超过0.5的列
+cols_to_remove <- names(missing_values[missing_values >= 0.5 * nrow(mclz)])
+
+# 删除筛选出的列
+df <- subset(mclz, select = setdiff(names(mclz), cols_to_remove))
+
+# 输出结果
+dim(df)
+```
+
+```{r}
+#用随机森林补缺失值
+#install.packages("missForest")
+library(missForest)
+df <- as.data.frame(lapply(df, as.numeric))
+dim(df)
+```
+
+```{r}
+filled_df <- missForest(df)
+
+# 输出结果
+dfz<- filled_df$ximp
+```
+
+
+```{r}
+write.csv(dfz, file ="mclb.csv", sep =" ", row.names =TRUE, col.names =TRUE, quote =TRUE)
+```
+
+```{r}
+dfz = read.csv("mclb.csv")
+```
+
+```{r}
+dfz = dfz[,c(2:dim(dfz)[2])]
+View(dfz)
+```
+
+
+```{r}
+ipwmcl <- IPW(dfz[,1],dfz[,2],dfz[,-c(1,2)])
+# 使用is.finite()函数判断每个元素是否为有限值
+finite_rowst <- apply(ipwmcl, 1, function(x) all(is.finite(x)))
+# 选择不包含Inf值的行
+ipwmcl <- ipwmcl[finite_rowst, ]
+MrDcSISmcl <- MrDc.SIS(300,ipwmcl);
+MrDcSISmcl1 <- MrDcSISmcl[order(MrDcSISmcl[, 1]),1]
+print(MrDcSISmcl1[1:4])
+xmcl <- as.matrix(dfz[,-c(1,2)])
+xmcl <- xmcl[,MrDcSISmcl1]
+x_zmcl <- Bzk(xmcl)
+x_z1mcl <- cbind(rep(1,dim(x_zmcl)[1]),x_zmcl)
+```
+
+```{r}
+n <- 6.5
+m = 10
+#hyperparameters.
+```
+
+```
+
+
+
+```{r}
+fitz2 <- DCA_BJ_lp(x_z1mcl,dfz[,2],dfz[,1],beta_c=rep(0.1,901) ,6.5,10)
+fitz2$daic
+```
+```{r}
+NV(fitz2$beta)
+```
+
+
+```{r}
+MrDcSISmcl1[NV(fitz2$beta)] 
+```
+
+```{r}
+a = BJASS(x_z1mcl,dfz[,2],dfz[,1],beta_ini = c(rep(0,901)),13,S = c(1:901),beta_S = c(rep(0,901)))
+beta_ini = c(rep(0,901))
+beta_ini[a$S] = a$beta_S
+b = BJASS(x_z1mcl,dfz[,2],dfz[,1],beta_ini,13,S = c(1:901),beta_S = c(rep(0,901)))
+beta_ini = c(rep(0,901))
+beta_ini[b$S] = b$beta_S
+c = BJASS(x_z1mcl,dfz[,2],dfz[,1],beta_ini,13,S = c(1:901),beta_S = c(rep(0,901)))
+beta_ini = c(rep(0,901))
+beta_ini[c$S] = c$beta_S
+d = BJASS(x_z1mcl,dfz[,2],dfz[,1],beta_ini,13,S = c(1:901),beta_S = c(rep(0,901)))
+beta_ini = c(rep(0,901))
+beta_ini[d$S] = d$beta_S
+g = BJASS(x_z1mcl,dfz[,2],dfz[,1],beta_ini,13,S = c(1:901),beta_S = c(rep(0,901)))
+g$daic
+
+```
+
+```{r}
+qq = (g$S-1)/3
+```
+
+
+```{r}
+MrDcSISmcl1[qq[2:length(qq)]] 
+```
+```{r}
+mclscad <- Bjsc(x_zmcl,dfz[,2],dfz[,1])
+
+```
+
+```{r}
+mclscad$DAICl
+```
+```{r}
+NV(mclscad$beta)
+```
+
+
+```{r}
+MrDcSISmcl1[NV(mclscad$beta)] 
+```
+```{r}
+colnames(dfz[,-c(1,2)])[c(2089,8424)]
+```
+
+
+
